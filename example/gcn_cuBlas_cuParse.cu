@@ -54,7 +54,7 @@ __global__ void raw_graph_to_AdjacencyList_kernel(int *raw_graph, int *edge_inde
         int src = raw_graph[2 * i];
         int dst = raw_graph[2 * i + 1];
         atomicAdd(&degree[src], 1);
-        atomicExch(&edge_index[dst * e_num + src], 1);
+        edge_index[dst * e_num + src] = 1;
     }
 }
 
@@ -67,7 +67,7 @@ __global__ void edgeNormalization_kernel(int *edge_index, float *edge_val, int *
         {
             if (edge_index[i * e_num + j] == 1)
             {
-                float val = 1 / sqrt((float)degree[i]) / sqrt((float)degree[j]);
+                float val = 1 / sqrtf(degree[i]) / sqrtf(degree[j]);
                 edge_val[i * e_num + j] = val;
             }
         }
@@ -124,18 +124,10 @@ void XW(int in_dim, int out_dim, float *in_X, float *out_X, float *W)
 
     cublasHandle_t handle;
     cublasCreate(&handle);
+    float alpha = 1.0f;
+    float beta = 0.0f;
 
-    const float alpha = 1.0f;
-    const float beta = 0.0f;
-
-    // Perform matrix multiplication: out_X = in_X * W
-    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, 
-                out_dim, v_num, in_dim, 
-                &alpha, 
-                d_W, out_dim, 
-                d_in_X, in_dim, 
-                &beta, 
-                d_out_X, out_dim);
+    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, out_dim, v_num, in_dim, &alpha, d_W, out_dim, d_in_X, in_dim, &beta, d_out_X, out_dim);
 
     cudaMemcpy(out_X, d_out_X, v_num * out_dim * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -308,7 +300,6 @@ void somePreprocessing()
 {
     raw_graph_to_AdjacencyList();
 }
-
 
 int main(int argc, char **argv)
 {
